@@ -1,3 +1,4 @@
+
 package kdtree;
 
 import java.util.ArrayList;
@@ -59,7 +60,8 @@ public class KDTree {
                 try {
                     return point.getClass().getDeclaredConstructor(processingSketch.getClass()).newInstance(processingSketch);
                 } catch (Exception ee) {
-                   throw new Error("can't create new instance; class: " + point.getClass() + "; " + e);
+                    throw new Error("can't create new instance; class: " + point.getClass() + "; Processing Sketch: "
+                            + processingSketch + "; " + e);
                 }
             }
         }
@@ -81,23 +83,23 @@ public class KDTree {
         }
     }
 
-    private class BinaryHeap {
-        ArrayList<Map<String, Object>> content;
-        Function<Map<String, Object>, Float> scoreFunction;
+    public class BinaryHeap {
+        public ArrayList<Object> content;
+        public Function<Object, Float> scoreFunction;
 
-        BinaryHeap(Function<Map<String, Object>, Float> scoreFunction) {
-            this.scoreFunction = scoreFunction;
+        public BinaryHeap(Function<Object, Float> scoreFunction) {
             this.content = new ArrayList<>();
+            this.scoreFunction = scoreFunction;
         }
 
-        void push(Map<String, Object> element) {
+        public void push(Object element) {
             content.add(element);
             bubbleUp(content.size() - 1);
         }
-        
-        Map<String, Object> pop() {
-            Map<String, Object> res = content.get(0);
-            Map<String, Object> end = content.remove(content.size() - 1);
+
+        public Object pop() {
+            Object res = content.get(0);
+            Object end = content.remove(content.size() - 1);
             if (content.size() > 0) {
                 content.set(0, end);
                 sinkDown(0);
@@ -105,22 +107,18 @@ public class KDTree {
             return res;
         }
 
-        int size() {
-            return content.size();
-        }
-
-        Map<String, Object> peek() {
+        public Object peek() {
             return content.get(0);
         }
 
-        void remove(Map<String, Object> node) {
+        public void remove(Object n) {
             int len = content.size();
             for (int i = 0; i < len; i++) {
-                if (content.get(i).equals(node)) {
-                    Map<String, Object> end = content.remove(content.size() - 1);
+                if (content.get(i).equals(n)) {
+                    Object end = content.get(content.size() - 1);
                     if (i != len - 1) {
                         content.set(i, end);
-                        if (scoreFunction.apply(end) < scoreFunction.apply(node)) {
+                        if (scoreFunction.apply(end) < scoreFunction.apply(n)) {
                             bubbleUp(i);
                         } else {
                             sinkDown(i);
@@ -129,15 +127,14 @@ public class KDTree {
                     return;
                 }
             }
-            throw new Error("node Not found");
+            throw new Error(n + " Not found.");
         }
 
-        void bubbleUp(int n) {
-            Map<String, Object> element = content.get(n);
-
+        public void bubbleUp(int n) {
+            Object element = content.get(n);
             while (n > 0) {
                 int parentN = (int) Math.floor((n + 1) / 2) - 1;
-                Map<String, Object> parent = content.get(parentN);
+                Object parent = content.get(parentN);
                 if (scoreFunction.apply(element) < scoreFunction.apply(parent)) {
                     content.set(parentN, element);
                     content.set(n, parent);
@@ -148,29 +145,32 @@ public class KDTree {
             }
         }
 
-        void sinkDown(int n) {
+        public void sinkDown(int n) {
             int length = content.size();
-            Map<String, Object> element = content.get(n);
-            float eleScore = scoreFunction.apply(element);
-            float child1Score = 0, child2Score = 0;
+            Object element = content.get(n);
+            float elementScore = scoreFunction.apply(element);
+
             while (true) {
                 int child2N = (n + 1) * 2, child1N = child2N - 1;
                 int swap = -100;
+                Object child1, child2;
+                float child1Score, child2Score, minScore = elementScore;
                 if (child1N < length) {
-                    Map<String, Object> child1 = content.get(child1N);
+                    child1 = content.get(child1N);
                     child1Score = scoreFunction.apply(child1);
-                    if (child1Score < eleScore) {
+                    if (child1Score < minScore) {
                         swap = child1N;
+                        minScore = child1Score;
                     }
                 }
                 if (child2N < length) {
-                    Map<String, Object> child2 = content.get(child2N);
+                    child2 = content.get(child2N);
                     child2Score = scoreFunction.apply(child2);
-                    if (child2Score < (swap == -100 ? eleScore : child1Score)) {
+                    if (child2Score < minScore) {
                         swap = child2N;
                     }
                 }
-                if (swap != -100) {
+                if (swap >= 0) {
                     content.set(n, content.get(swap));
                     content.set(swap, element);
                     n = swap;
@@ -178,6 +178,21 @@ public class KDTree {
                     break;
                 }
             }
+        }
+    }
+    
+    private class SearchResult {
+        Node node;
+        float dist;
+
+        SearchResult(Node node, float dist) {
+            this.node = node;
+            this.dist = dist;
+        }
+
+        SearchResult(float dist) {
+            this.node = null;
+            this.dist = dist;
         }
     }
 
@@ -361,38 +376,39 @@ public class KDTree {
         int i;
         ArrayList<Map<String, Object>> result = new ArrayList<>();
         BinaryHeap bestNodes;
-        bestNodes = new BinaryHeap((e) -> -1 * (Float) e.get("dist"));
+        Function<Object, Float> scoreFunc = (e) -> {
+            return -1 * ((SearchResult) e).dist;
+        };
+        bestNodes = new BinaryHeap(scoreFunc);
         if (maxDist > 0) {
             for (i = 0; i < maxNodes; i++) {
-                Map<String, Object> tem = new HashMap<String, Object>();
-                tem.put("obj", null);
-                tem.put("dist", maxDist);
-                bestNodes.push(tem);
+                bestNodes.push(new SearchResult(maxDist));
             }
         }
         if (root != null) {
-            nearestSearch(point, root, bestNodes, maxNodes);
+            nearestSearch(root, point, bestNodes, maxNodes);
         }
 
+        result = new ArrayList<>();
+
         for (i = 0; i < Math.min(maxNodes, bestNodes.content.size()); i++) {
-            if (bestNodes.content.get(i).get("obj") != null) {
-                Node n = (Node) bestNodes.content.get(i).get("obj");
+            SearchResult candidate = ((SearchResult) bestNodes.content.get(i));
+            if (candidate.node != null) {
                 Map<String, Object> tem = new HashMap<String, Object>();
-                tem.put("obj", n.obj);
-                tem.put("dist", bestNodes.content.get(i).get("dist"));
+                tem.put("obj", candidate.node.obj);
+                tem.put("dist", candidate.dist);
                 result.add(tem);
             }
         }
-        
+
         return (Map<String, Object>[]) result.toArray(new Map[0]);
     }
-
-    private void nearestSearch(Object point, Node node, BinaryHeap bestNodes, int maxNodes) {
+    
+    private void nearestSearch(Node node, Object point, BinaryHeap bestNodes, int maxNodes) {
         Node bestChild, otherChild;
         String dimension = dimensions[node.dimension];
         float ownDist = metric.apply(point, node.obj);
         Object linearPoint = instantiate(point);
-        
         float linearDist;
 
         for (int i = 0; i < dimensions.length; i++) {
@@ -405,8 +421,8 @@ public class KDTree {
 
         linearDist = metric.apply(linearPoint, node.obj);
         if (node.right == null && node.left == null) {
-            if (bestNodes.size() < maxNodes || ownDist < (Float) bestNodes.peek().get("dist")) {
-                saveNode(bestNodes, maxNodes, node, ownDist);
+            if (bestNodes.content.size() < maxNodes || ownDist < ((SearchResult) bestNodes.peek()).dist) {
+                saveNode(node, ownDist, bestNodes, maxNodes);
             }
             return;
         }
@@ -416,39 +432,35 @@ public class KDTree {
         } else if (node.left == null) {
             bestChild = node.right;
         } else {
-            float pV = getDimension(point, dimension), nV = getDimension(node.obj, dimension);
-            if (pV < nV) {
+            if (getDimension(point, dimension) < getDimension(node.obj, dimension)) {
                 bestChild = node.left;
             } else {
                 bestChild = node.right;
             }
         }
 
-        nearestSearch(point, bestChild, bestNodes, maxNodes);
+        nearestSearch(bestChild, point, bestNodes, maxNodes);
 
-        if (bestNodes.size() < maxNodes || ownDist < (Float) bestNodes.peek().get("dist")) {
-            saveNode(bestNodes, maxNodes, node, ownDist);
+        if (bestNodes.content.size() < maxNodes || ownDist < ((SearchResult) bestNodes.peek()).dist) {
+            saveNode(node, ownDist, bestNodes, maxNodes);
         }
-        if (bestNodes.size() < maxNodes || Math.abs(linearDist) < (Float) bestNodes.peek().get("dist")) {
-            if (bestChild == node.left) {
-                otherChild = node.right;
-            } else {
+        if (bestNodes.content.size() < maxNodes || Math.abs(linearDist) < ((SearchResult) bestNodes.peek()).dist) {
+            if (bestChild.equals(node.right)) {
                 otherChild = node.left;
+            } else {
+                otherChild = node.right;
             }
             if (otherChild != null) {
-                nearestSearch(linearPoint, otherChild, bestNodes, maxNodes);
+                nearestSearch(otherChild, point, bestNodes, maxNodes);
             }
         }
-
     }
-
-    private void saveNode(BinaryHeap bestNodes, int maxNodes, Node node, float distance) {
-        Map<String, Object> tem = new HashMap<String, Object>();
-        tem.put("obj", node);
-        tem.put("dist", distance);
-        bestNodes.push(tem);
-        if (bestNodes.size() > maxNodes)
+    
+    private void saveNode(Node node, float dist, BinaryHeap bestNodes, int maxNodes) {
+        bestNodes.push(new SearchResult(node, dist));
+        if (bestNodes.content.size() > maxNodes) {
             bestNodes.pop();
+        }
     }
     
     public float balanceFactor() {
