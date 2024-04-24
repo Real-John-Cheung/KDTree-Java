@@ -1,4 +1,4 @@
-import kdtree.*;
+import trees.*;
 
 public class Point{
   public float x, y;
